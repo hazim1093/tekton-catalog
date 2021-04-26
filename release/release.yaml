@@ -1,0 +1,58 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: release
+  namespace: cicd
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: >-
+    Create a release using 'standard-version', based on conventional-commits
+
+    - Updates version in files
+    - Creates tags 
+    - Creates a changelog
+    - Pushes release to git
+
+    For more info: https://github.com/conventional-changelog/standard-version
+  workspaces:
+    - name: source
+  params:
+    - name: IMAGE
+      type: string
+      default: "docker.io/ckxng/standardversion:1.0.4" # TODO: Use own docker image
+      description: The docker image with standard-version
+    - name: GIT_USER_NAME
+      type: string
+      description: |
+        Git user name for performing git operation.
+      default: "bot"
+    - name: GIT_USER_EMAIL
+      type: string
+      description: |
+        Git user email for performing git operation.
+      default: "bot@example.com"
+    - name: GIT_BRANCH
+      type: string
+      description: |
+        Branch to push the changes to
+  steps:
+    - name: git-configure
+      image: $(params.IMAGE)
+      workingDir: $(workspaces.source.path)
+      script: |
+        git config --global user.email "$(params.GIT_USER_EMAIL)"
+        git config --global user.name "$(params.GIT_USER_NAME)"
+        git checkout $(params.GIT_BRANCH)
+
+    - name: create-release
+      image: $(params.IMAGE)
+      command:
+        - "standard-version"
+      workingDir: $(workspaces.source.path)
+    
+    - name: git-push
+      image: $(params.IMAGE)
+      workingDir: $(workspaces.source.path)
+      script: |
+        git push --follow-tags origin $(params.GIT_BRANCH)
